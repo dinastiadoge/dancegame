@@ -1,26 +1,25 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Runner {
 
     private boolean stop = false;
-    private boolean start = false;
+    private boolean start = true;
     public int points = 0;
     private final Random rd = new Random();
     private final Timer timer = new Timer();
     Scanner scanner = new Scanner(System.in);
 
-    public void run(){
+    public void run() throws InterruptedException {
         startGame();
         if(!start) System.exit(0);
         do {
-            if(stop) {
-                showScore();
-                break;
-            }
             Movement movement = side(createMovement());
             int value = getInput();
             setPoint(movement,value);
         } while (!stop);
+            showScore();
+            restart();
     }
 
     private void startGame(){
@@ -28,27 +27,49 @@ public class Runner {
         System.out.println("Bem vindo ao jogo da dança!!");
         System.out.println("Digite Y para jogar, N para sair");
         String input = scanner.nextLine();
-        setStart(!input.equalsIgnoreCase("y"));
+        if (!input.equalsIgnoreCase("y")){
+            start = false;
+        };
         System.out.println("---------------------");
     }
 
-    private int getInput(){
-        //todo fazer um sistema de nível de dificuldade
-        long timeToHit = rd.nextInt(2,4);
-        EndGameTask endGameTask = new EndGameTask();
-        this.timer.schedule(endGameTask, (timeToHit * 1000));
-        int value = scanner.nextInt();
-        if(endGameTask.complete){
-            setStop(true);
+    private void restart() throws InterruptedException {
+        System.out.println("---------------------");
+        System.out.println("Tentar novamente?!");
+        System.out.println("Digite Y para jogar, N para sair");
+        String input = scanner.nextLine();
+        if (input.equalsIgnoreCase("y")){
+            run();
+        };
+    }
+
+    private int getInput() throws InterruptedException {
+        //todo nível de dificuldade
+        long timeToHit = rd.nextInt(2, 4); // seconds
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        Callable<Integer> task = () -> {
+            int val = scanner.nextInt();
+            scanner.nextLine();
+            return  val;
+        };
+
+        Future<Integer> future = executor.submit(task);
+
+        try {
+            return future.get(timeToHit, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            stop = true;
             return 0;
-        }else {
-            endGameTask.cancel();
-            return value;
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Erro ao ler input", e);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
     public void showScore(){
-        System.out.println("Sua pontuação foi: "+ this.points);
+        System.out.println("\nSua pontuação foi: "+ this.points);
     }
 
     private void setPoint(Movement movement, int input){
@@ -57,19 +78,11 @@ public class Runner {
         }
     }
 
-    public void setStop(boolean stop) {
-        this.stop = stop;
-    }
-
-    public void setStart(boolean start) {
-        this.start = start;
-    }
-
     private Movement side(Movement movement){
         System.out.print("|            ");
         System.out.print(movement.getValue());
         System.out.print("            |");
-        System.out.print("          =>");
+        System.out.print("    =>");
         return movement;
     }
 
