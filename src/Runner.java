@@ -64,7 +64,7 @@ public class Runner {
         String input = scanner.nextLine();
         if (input.equalsIgnoreCase("y")){
             start = true;
-        };
+        }
         System.out.println(line);
     }
 
@@ -73,7 +73,7 @@ public class Runner {
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         Callable<String> task = () -> {
-            String input = scanner.nextLine().trim();
+            String input = scanner.nextLine().trim().replaceAll("[^0-9]", "");
             return input.isEmpty() ? "0" : input;
         };
 
@@ -153,6 +153,9 @@ public class Runner {
             do {
                 System.out.print("\nDigite seu nome (3 letras): ");
                 name = scanner.nextLine().toUpperCase();
+                if (!name.isEmpty()) {
+                    break;
+                }
             } while (name.length() != 3);
 
             File file = new File("scores.txt");
