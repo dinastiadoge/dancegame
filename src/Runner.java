@@ -1,3 +1,7 @@
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -17,11 +21,12 @@ public class Runner {
         if(start) {
             do {
                 Movement movement = side(createMovement());
-                int value = getInput();
+                int value = Integer.parseInt(getInput());
                 setPoint(movement, value);
                 setDifficulty(this.points);
             } while (!stop);
             showScore();
+            saveScore();
         }
     }
 
@@ -63,19 +68,23 @@ public class Runner {
         System.out.println(line);
     }
 
-    private int getInput() throws InterruptedException {
+    private String getInput() throws InterruptedException {
         long timeToHit = rd.nextInt(origin, bound);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
-        Callable<Integer> task = () -> scanner.nextInt();
+        Callable<String> task = () -> {
+            String input = scanner.nextLine().trim();
+            return input.isEmpty() ? "0" : input;
+        };
 
-        Future<Integer> future = executor.submit(task);
+        Future<String> future = executor.submit(task);
 
         try {
             return future.get(timeToHit, TimeUnit.SECONDS);
         } catch (TimeoutException | ExecutionException e) {
+            scanner = new Scanner(System.in);
             stop = true;
-            return 0;
+            return "0";
         } finally {
             executor.shutdownNow();
         }
@@ -83,35 +92,40 @@ public class Runner {
 
     public void showScore() {
         System.out.println("\n+-------------------+");
-        System.out.printf("| %-10s: %5.0f |\n", "Pontuação: ", this.totalPoints);
-        System.out.printf("| %-10s: %5d |\n", "Movimentos", this.points + errors);
-        System.out.printf("| %-10s: %5d |\n", "Acertos", this.points);
-        System.out.printf("| %-10s: %5d |\n", "Erros", this.errors);
+        System.out.printf("| %-12s: %5.0f |\n", "Pontuação: ", this.totalPoints);
+        System.out.printf("| %-12s: %5d |\n", "Movimentos", this.points + errors);
+        System.out.printf("| %-12s: %5d |\n", "Acertos", this.points);
+        System.out.printf("| %-12s: %5d |\n", "Erros", this.errors);
         System.out.print(line);
     }
 
     private void setPoint(Movement movement, int input){
         if(movement.hit(input)){
+            this.errorsBackup = 0;
             this.points += 1;
-            this.totalPoints += input * onStreak(errors);
+            this.totalPoints += 10 * onStreak();
         }else {
             this.errors += 1;
+            this.errorsBackup += 1;
         }
     }
 
-    private double onStreak(int errors) {
-        if(errorsBackup == 0) errorsBackup = errors;
-        if(errors != errorsBackup){
-            errorsBackup = errors;
-            return 1;
-        }else {
-            return points / 10.0;
+    private double onStreak() {
+        if(this.errorsBackup != 0) {
+            return 0;
         }
+        if(this.points <= 10){
+            return 2;
+        }
+        if(this.points <= 50){
+            return 5;
+        }
+        return 10;
     }
 
     private Movement side(Movement movement) {
         String value = String.valueOf(movement.getValue());
-        int width = 20;
+        int width = 19;
         Random random = new Random();
 
         int maxStart = width - value.length();
@@ -131,5 +145,53 @@ public class Runner {
     private Movement createMovement(){
         int movementValue = rd.nextInt(movementOrigin, movementBound);
         return new Movement(movementValue);
+    }
+
+    private void saveScore() {
+        try {
+            String name;
+            do {
+                System.out.print("\nDigite seu nome (3 letras): ");
+                name = scanner.nextLine().toUpperCase();
+            } while (name.length() != 3);
+
+            File file = new File("scores.txt");
+            List<String> lines = new ArrayList<>();
+
+            if (file.exists()) {
+                lines = new ArrayList<>(Files.readAllLines(file.toPath()));
+            }
+
+            // lista de scores (nome, pontos)
+            List<Score> scores = new ArrayList<>();
+            for (String line : lines) {
+                String[] parts = line.split(";");
+                if (parts.length == 2) {
+                    String player = parts[0];
+                    double points = Double.parseDouble(parts[1]);
+                    scores.add(new Score(player, points));
+                }
+            }
+
+            scores.add(new Score(name, totalPoints));
+            scores.sort((a, b) -> Double.compare(b.points, a.points));
+
+            if (scores.size() > 3) {
+                scores = scores.subList(0, 3);
+            }
+            try (PrintWriter writer = new PrintWriter(file)) {
+                for (Score s : scores) {
+                    writer.println(s.name + ";" + s.points);
+                }
+            }
+            System.out.println("\n=== PÓDIO ===");
+            for (int i = 0; i < scores.size(); i++) {
+                Score s = scores.get(i);
+                System.out.printf("%dº %s - %.0f pontos\n", i + 1, s.name, s.points);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
